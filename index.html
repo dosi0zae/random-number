@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>랜덤 숫자</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="랜덤 숫자">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  /* iOS 다크 모드 시스템 색 */
+  :root {
+    --bg: #000;
+    --bg2: #1c1c1e;          /* 그룹 배경 */
+    --bg3: #2c2c2e;          /* 셀 위 요소 */
+    --fill: rgba(118,118,128,.24);
+    --fill2: rgba(118,118,128,.36);
+    --sep: rgba(84,84,88,.6);
+    --label: #fff;
+    --label2: rgba(235,235,245,.6);
+    --label3: rgba(235,235,245,.3);
+    --blue: #0a84ff; --red: #ff453a; --green: #30d158;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--label); font-family: var(--font);
+    -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none; overflow: hidden; }
+  body { display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  button { font-family: inherit; }
+
+  /* ---- 상단 바 ---- */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; transition: opacity .35s; }
+  body.rolling header, body.rolling #history { opacity: .2; pointer-events: none; }
+
+  .range { display: flex; align-items: center; gap: 12px; }
+  .seg { display: flex; align-items: center; background: var(--fill); border-radius: 12px; padding: 3px; }
+  .seg input { width: 92px; height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--label);
+    font: 600 22px/1 var(--font); font-variant-numeric: tabular-nums; text-align: center;
+    -webkit-appearance: none; appearance: none; -moz-appearance: textfield; -webkit-user-select: text; user-select: text;
+    transition: background .2s; }
+  .seg input::-webkit-outer-spin-button, .seg input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .seg input:focus { outline: none; background: var(--bg3); box-shadow: 0 3px 8px rgba(0,0,0,.25); }
+  .seg .dash { color: var(--label3); font-size: 18px; padding: 0 2px; }
+  .caption { color: var(--label2); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+  .tools { display: flex; gap: 10px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border: 0;
+    border-radius: 999px; background: var(--fill); color: var(--label); font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: transform .12s, background .2s; }
+  .pill:active { transform: scale(.95); background: var(--fill2); }
+  .pill svg { width: 18px; height: 18px; }
+  .pill.destructive { color: var(--red); }
+  .pill.icon { width: 40px; padding: 0; justify-content: center; }
+
+  /* ---- 숫자 ---- */
+  main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1vh; padding: 0 12px; min-height: 0; }
+  #display { font-family: ui-rounded, "SF Pro Rounded", -apple-system, "Apple SD Gothic Neo", sans-serif;
+    font-weight: 800; line-height: .9; font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    text-align: center; white-space: nowrap; display: flex; justify-content: center; gap: .25em;
+    font-size: var(--fs, min(56vw, 66vh)); }
+  #display .n { display: inline-block; }
+  #display .n.idle { color: var(--label3); }
+  #display .n.spin { color: rgba(235,235,245,.35); animation: jitter .09s infinite; }
+  #display .n.slow { color: rgba(235,235,245,.8); }
+  #display .n.locked {
+    color: transparent;
+    background: var(--grad, linear-gradient(135deg, #ff3d7f 0%, #ff8a1f 32%, #b44dff 68%, #2f9bff 100%));
+    background-size: 220% 220%;
+    -webkit-background-clip: text; background-clip: text;
+    filter: drop-shadow(0 0 .05em var(--glow, rgba(255,61,127,.35)));
+    animation: reveal .55s cubic-bezier(.3,1.4,.5,1), drift 7s ease-in-out .55s infinite alternate;
+  }
+  #display.multi { flex-wrap: wrap; max-width: 96vw; row-gap: 0; }
+  @keyframes jitter {
+    0% { transform: translate(0, 0); } 25% { transform: translate(-.01em, .008em); }
+    50% { transform: translate(.008em, -.01em); } 75% { transform: translate(-.006em, -.006em); } }
+  @keyframes reveal { 0% { transform: scale(.82); opacity: 0; } 60% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); } }
+  @keyframes drift { 0% { background-position: 0% 30%; } 100% { background-position: 100% 70%; } }
+
+  #hint { color: var(--label3); font-size: 17px; min-height: 1.4em; text-align: center; transition: opacity .3s; }
+  body.rolling #hint { opacity: 0; }
+
+  #bar { position: fixed; left: 0; top: 0; height: 3px; width: 0; opacity: 0; transition: opacity .3s;
+    background: linear-gradient(90deg, #ff3d7f, #b44dff, #2f9bff); border-radius: 0 3px 3px 0; }
+  body.rolling #bar { opacity: 1; }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* ---- 기록 ---- */
+  #history { padding: 6px 20px 18px; display: flex; gap: 8px; overflow-x: auto; min-height: 56px;
+    scrollbar-width: none; transition: opacity .35s; }
+  #history::-webkit-scrollbar { display: none; }
+  #history span { height: 34px; min-width: 44px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--fill); color: var(--label2); border-radius: 999px; font-size: 17px; font-weight: 600;
+    font-variant-numeric: tabular-nums; flex: none; }
+  #history span:first-child { background: rgba(255,255,255,.92); color: #000; }
+
+  /* ---- 설정 시트 (iOS 모달) ---- */
+  #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center;
+    padding: 16px; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  #sheet.open { opacity: 1; pointer-events: auto; }
+  .modal { width: 100%; max-width: 420px; background: var(--bg2); border-radius: 14px; overflow: hidden;
+    transform: translateY(24px) scale(.98); transition: transform .3s cubic-bezier(.2,.9,.3,1); }
+  #sheet.open .modal { transform: none; }
+  .nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 56px; padding: 0 16px;
+    border-bottom: .5px solid var(--sep); }
+  .nav h2 { margin: 0; font-size: 17px; font-weight: 600; }
+  .nav .done { justify-self: end; background: none; border: 0; color: var(--blue); font-size: 17px; font-weight: 600; cursor: pointer; padding: 8px 0; }
+  .group-title { color: var(--label2); font-size: 13px; text-transform: uppercase; padding: 20px 20px 6px; }
+  .group { margin: 0 16px; background: var(--bg3); border-radius: 10px; overflow: hidden; }
+  .cell { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 16px; font-size: 17px; }
+  .cell + .cell { border-top: .5px solid var(--sep); }
+  .modal .foot { height: 20px; }
+
+  /* iOS 스위치 */
+  .switch { position: relative; width: 51px; height: 31px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch i { position: absolute; inset: 0; background: var(--fill2); border-radius: 999px; transition: background .25s; }
+  .switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.15), 0 3px 1px rgba(0,0,0,.06); transition: transform .25s cubic-bezier(.3,.7,.4,1); }
+  .switch input:checked + i { background: var(--green); }
+  .switch input:checked + i::after { transform: translateX(20px); }
+
+  /* iOS 알림창 */
+  #alert { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
+  #alert.open { opacity: 1; pointer-events: auto; }
+  #alert .box { width: 270px; border-radius: 14px; overflow: hidden; text-align: center;
+    background: rgba(44,44,46,.92); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+    transform: scale(1.1); transition: transform .25s cubic-bezier(.2,.9,.3,1); }
+  #alert.open .box { transform: none; }
+  #alert .txt { padding: 19px 16px 18px; }
+  #alert h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  #alert p { margin: 0; font-size: 13px; color: var(--label); opacity: .85; line-height: 1.35; }
+  #alert .btns { display: flex; border-top: .5px solid var(--sep); }
+  #alert .btns button { flex: 1; height: 44px; border: 0; background: none; font-size: 17px; color: var(--blue); cursor: pointer; }
+  #alert .btns button + button { border-left: .5px solid var(--sep); }
+  #alert .btns button:active { background: rgba(255,255,255,.08); }
+  #alert .btns .ok { font-weight: 600; }
+  #alert .btns .ok.destructive { color: var(--red); }
+
+  /* iOS 스테퍼 */
+  .stepper { display: flex; align-items: center; gap: 12px; }
+  .stepper output { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; color: var(--label2); }
+  .stepper .btns { display: flex; background: var(--fill); border-radius: 9px; overflow: hidden; }
+  .stepper button { width: 46px; height: 32px; border: 0; background: none; color: var(--label); font-size: 20px; cursor: pointer; }
+  .stepper button + button { border-left: .5px solid var(--sep); }
+  .stepper button:active { background: var(--fill2); }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<header>
+  <div class="range">
+    <div class="seg">
+      <input type="number" id="min" inputmode="numeric" aria-label="최소값">
+      <span class="dash">–</span>
+      <input type="number" id="max" inputmode="numeric" aria-label="최대값">
+    </div>
+    <span class="caption" id="left"></span>
+  </div>
+  <div class="tools">
+    <button class="pill destructive" id="reset">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      초기화
+    </button>
+    <button class="pill icon" id="openSettings" aria-label="설정">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div id="display"><span class="n idle">?</span></div>
+  <div id="hint"></div>
+</main>
+<canvas id="fx"></canvas>
+
+<div id="history"></div>
+
+<div id="sheet">
+  <div class="modal">
+    <div class="nav"><span></span><h2>설정</h2><button class="done" id="done">완료</button></div>
+    <div class="group-title">뽑기</div>
+    <div class="group">
+      <div class="cell">한 번에 뽑을 개수
+        <div class="stepper"><output id="countOut">1</output>
+          <div class="btns"><button id="dec">−</button><button id="inc">+</button></div></div>
+      </div>
+      <label class="cell">이미 나온 숫자 제외 <span class="switch"><input type="checkbox" id="unique"><i></i></span></label>
+    </div>
+    <div class="group-title">효과</div>
+    <div class="group">
+      <label class="cell">긴장감 애니메이션 <span class="switch"><input type="checkbox" id="anim"><i></i></span></label>
+      <label class="cell">효과음 <span class="switch"><input type="checkbox" id="sound"><i></i></span></label>
+    </div>
+    <div class="foot"></div>
+  </div>
+</div>
+
+<div id="alert">
+  <div class="box">
+    <div class="txt"><h3 id="alertTitle"></h3><p id="alertMsg"></p></div>
+    <div class="btns"><button id="alertCancel">취소</button><button class="ok" id="alertOk">확인</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const KEY = 'rand-num-v1';
+  const defaults = { min: 1, max: 100, count: 1, unique: true, anim: true, sound: true, drawn: [] };
+
+  let state = { ...defaults };
+  try { state = { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) {}
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+
+  // iOS 스타일 알림창 (브라우저 기본 confirm 대신 — 일부 환경에서 막힘)
+  function ask(title, msg, { ok = '확인', cancel = '취소', destructive = false } = {}) {
+    return new Promise(resolve => {
+      $('alertTitle').textContent = title; $('alertMsg').textContent = msg;
+      $('alertOk').textContent = ok; $('alertOk').classList.toggle('destructive', destructive);
+      $('alertCancel').style.display = cancel ? '' : 'none'; $('alertCancel').textContent = cancel || '';
+      const close = v => { $('alert').classList.remove('open'); $('alertOk').onclick = $('alertCancel').onclick = null; resolve(v); };
+      $('alertOk').onclick = () => close(true);
+      $('alertCancel').onclick = () => close(false);
+      $('alert').classList.add('open');
+    });
+  }
+
+  // 암호학적 난수로 [min, max] 정수 (모듈로 편향 없음)
+  function randInt(min, max) {
+    const range = max - min + 1;
+    const limit = Math.floor(0x100000000 / range) * range;
+    const buf = new Uint32Array(1);
+    do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+    return min + (buf[0] % range);
+  }
+
+  function pool() {
+    const used = new Set(state.drawn);
+    const out = [];
+    for (let n = state.min; n <= state.max; n++) if (!state.unique || !used.has(n)) out.push(n);
+    return out;
+  }
+
+  function draw() {
+    const picks = [];
+    if (state.unique) {
+      const p = pool();
+      for (let i = 0; i < state.count && p.length; i++) picks.push(p.splice(randInt(0, p.length - 1), 1)[0]);
+    } else {
+      for (let i = 0; i < state.count; i++) picks.push(randInt(state.min, state.max));
+    }
+    return picks;
+  }
+
+  // ---- 효과음 (WebAudio로 합성, 오프라인 OK) ----
+  let ac = null;
+  function audio() {
+    if (!state.sound) return null;
+    try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); }
+    catch (e) { ac = null; }
+    return ac;
+  }
+  function tone(freq, dur, type = 'square', vol = .08) {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .02);
+  }
+  const tick = p => tone(500 + p * 700, .04, 'square', .05);
+  const ding = () => { tone(880, .5, 'triangle', .18); setTimeout(() => tone(1320, .7, 'triangle', .14), 90); };
+  const chime = () => [784, 988, 1319].forEach((f, i) => setTimeout(() => tone(f, .6, 'sine', .12), i * 90));
+  // 팡: 짧은 노이즈 팝
+  function popSound() {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime, len = a.sampleRate * .12, buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 4);
+    const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = buf; f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = .8; g.gain.value = .5;
+    src.connect(f).connect(g).connect(a.destination); src.start(t);
+  }
+
+  // ---- 표시 ----
+  const display = $('display');
+  function fitFont(n) {
+    const digits = Math.max(String(state.max).length, String(state.min).length);
+    if (n === 1) {
+      const w = 92 / (digits * .6), h = 68;
+      display.style.setProperty('--fs', `min(${w.toFixed(1)}vw, ${h}vh)`);
+    } else {
+      const perRow = Math.min(n, digits <= 2 ? 4 : 3), rows = Math.ceil(n / perRow);
+      const w = 92 / (perRow * (digits * .6 + .25)), h = 66 / rows;
+      display.style.setProperty('--fs', `min(${w.toFixed(1)}vw, ${h.toFixed(1)}vh)`);
+    }
+  }
+  function slots(n) {
+    fitFont(n);
+    display.classList.toggle('multi', n > 1);
+    display.innerHTML = Array.from({ length: n }, () => '<span class="n idle">?</span>').join('');
+    return [...display.children];
+  }
+
+  function render() {
+    const total = state.max - state.min + 1;
+    const left = state.unique ? pool().length : null;
+    $('left').textContent = state.unique ? `남은 ${left} / ${total}` : '중복 허용';
+    $('history').innerHTML = state.drawn.slice().reverse().map(n => `<span>${n}</span>`).join('');
+    $('hint').textContent = state.unique && left === 0 ? '모든 숫자를 다 뽑았어요 · 초기화를 눌러주세요' : '화면을 터치하세요';
+  }
+
+  // ---- 숫자 그라데이션: 뽑을 때마다 랜덤 팔레트 ----
+  const PALETTES = [
+    ['#fff35c', '#ffb21c', '#ff3d7f'],            // 레몬 → 오렌지 → 핑크
+    ['#fff35c', '#b8ff3d', '#2fe0a0'],            // 레몬 → 라임 → 민트
+    ['#fff35c', '#5cffd1', '#3db0ff'],            // 레몬 → 아쿠아 → 블루
+    ['#ff3d7f', '#ff8a1f', '#b44dff', '#2f9bff'], // 핑크 → 오렌지 → 보라 → 블루
+    ['#3df2ff', '#2f9bff', '#9b5cff'],            // 시안 → 블루 → 보라
+    ['#ffcf1c', '#ff4d4d', '#ff2ea6'],            // 선셋
+    ['#ff5ce1', '#9b5cff', '#3df2ff'],            // 네온 퍼플
+    ['#e8ff3d', '#ffe03d', '#ff7a1f'],            // 레몬 → 망고
+    ['#2fe0a0', '#fff35c', '#ff5c8a'],            // 수박
+  ];
+  const pick = a => a[(Math.random() * a.length) | 0];
+  function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+  function paint(el) {
+    const pal = pick(PALETTES);
+    const cols = Math.random() < .5 ? pal : pal.slice().reverse();
+    const ang = (Math.random() * 360) | 0;
+    el.style.setProperty('--grad', `linear-gradient(${ang}deg, ${cols.join(', ')})`);
+    el.style.setProperty('--glow', hexA(cols[0], .4));
+    el._pal = cols;
+  }
+
+  // ---- 색종이: 숫자에서 팡! 동그란 조각이 빽빽하게 터졌다가 사라짐 ----
+  const fx = $('fx'), ctx = fx.getContext('2d');
+  const EXTRA = ['#ffffff', '#fff35c', '#ff3d7f', '#3df2ff', '#b8ff3d', '#ff8a1f', '#9b5cff'];
+  let bits = [], fxRunning = false, dpr = 1;
+  function sizeFx() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    fx.width = innerWidth * dpr; fx.height = innerHeight * dpr;
+  }
+  sizeFx(); addEventListener('resize', sizeFx);
+
+  function spawn(cx, cy, spread, amount, cols, speedMul) {
+    const reach = Math.max(innerWidth, innerHeight) / 1024;   // 아이패드 가로 기준 1
+    for (let i = 0; i < amount; i++) {
+      const ang = -Math.PI / 2 + (Math.random() - .5) * Math.PI * 2;  // 전방향
+      const spd = (6 + Math.pow(Math.random(), .6) * 34) * speedMul * reach * dpr;
+      const sparkle = Math.random() < .18;
+      bits.push({
+        x: cx + (Math.random() - .5) * spread.w, y: cy + (Math.random() - .5) * spread.h,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 4 * dpr,
+        r: (sparkle ? 1.5 + Math.random() * 1.5 : 3 + Math.pow(Math.random(), 1.6) * 7) * dpr,
+        flip: Math.random() * Math.PI * 2, vf: .12 + Math.random() * .15,
+        sway: Math.random() * Math.PI * 2, life: 0, max: 80 + Math.random() * 55,
+        c: sparkle ? '#ffffff' : (Math.random() < .6 ? pick(cols) : pick(EXTRA)), sparkle,
+      });
+    }
+  }
+  function confetti(el) {
+    const r = el.getBoundingClientRect();
+    const cx = (r.left + r.width / 2) * dpr, cy = (r.top + r.height / 2) * dpr;
+    const cols = el._pal || EXTRA;
+    spawn(cx, cy, { w: r.width * .5 * dpr, h: r.height * .4 * dpr }, 340, cols, 1);       // 메인 폭발
+    setTimeout(() => spawn(cx, cy, { w: r.width * .9 * dpr, h: r.height * .7 * dpr }, 160, cols, .7), 90); // 2차
+    if (!fxRunning) { fxRunning = true; requestAnimationFrame(loop); }
+  }
+  function loop() {
+    ctx.clearRect(0, 0, fx.width, fx.height);
+    bits = bits.filter(b => ++b.life < b.max);
+    for (const b of bits) {
+      b.vx *= .95; b.vy = b.vy * .95 + .42 * dpr;            // 공기저항 + 중력
+      if (b.vy > 2.8 * dpr) b.vy = 2.8 * dpr;                // 천천히 낙하
+      b.sway += .07; b.flip += b.vf;
+      b.x += b.vx + Math.sin(b.sway) * .7 * dpr; b.y += b.vy;
+      const k = b.life / b.max, alpha = k < .55 ? 1 : 1 - (k - .55) / .45;  // 후반에 사라짐
+      const face = Math.abs(Math.cos(b.flip));               // 스팽글처럼 반짝 뒤집힘
+      ctx.globalAlpha = alpha * (b.sparkle ? (Math.random() < .5 ? 1 : .25) : .65 + .35 * face);
+      ctx.fillStyle = b.c;
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y, b.r, b.r * (b.sparkle ? 1 : .35 + .65 * face), b.sway, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (bits.length) requestAnimationFrame(loop);
+    else { fxRunning = false; ctx.clearRect(0, 0, fx.width, fx.height); }
+  }
+
+  function pop(el, final) { if (final) { confetti(el); popSound(); } }
+
+  // ---- 뽑기 ----
+  let busy = false;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function go() {
+    if (busy) return;
+    const picks = draw();
+    if (!picks.length) return render();
+    busy = true;
+    audio(); // iOS: 사용자 터치 순간에 오디오 잠금 해제
+    const els = slots(picks.length);
+
+    if (state.anim) {
+      document.body.classList.add('rolling');
+      const bar = $('bar');
+      const total = 3200 + (picks.length - 1) * 900; // 전체 연출 시간
+      const lockAt = picks.map((_, i) => total - (picks.length - 1 - i) * 900);
+      const start = performance.now();
+      const locked = picks.map(() => false);
+      els.forEach(e => e.className = 'n spin');
+
+      while (locked.includes(false)) {
+        const t = performance.now() - start;
+        bar.style.width = Math.min(100, t / total * 100) + '%';
+        // 아직 안 멈춘 슬롯 중 가장 앞 슬롯 기준으로 감속
+        const idx = locked.indexOf(false);
+        const segStart = idx === 0 ? 0 : lockAt[idx - 1];
+        const p = Math.min(1, (t - segStart) / (lockAt[idx] - segStart)); // 0→1
+        if (t >= lockAt[idx]) {
+          locked[idx] = true;
+          paint(els[idx]);
+          els[idx].className = 'n locked';
+          els[idx].textContent = picks[idx];
+          const final = idx === picks.length - 1;
+          pop(els[idx], final); final ? chime() : ding();
+          await sleep(120);
+          continue;
+        }
+        els.forEach((e, i) => {
+          if (locked[i]) return;
+          e.textContent = randInt(state.min, state.max);
+          if (i === idx && p > .7) e.className = 'n slow';
+        });
+        tick(p);
+        // 처음엔 빠르게(35ms) → 마지막엔 아주 느리게(~420ms)
+        await sleep(35 + Math.pow(p, 3) * 385);
+      }
+      await sleep(400);
+      document.body.classList.remove('rolling');
+      bar.style.width = '0';
+    } else {
+      els.forEach((e, i) => { paint(e); e.className = 'n locked'; e.textContent = picks[i]; });
+      pop(els[els.length - 1], true); chime();
+    }
+
+    state.drawn.push(...picks);
+    persist(); render(); busy = false;
+  }
+
+  // 화면 아무 곳이나 터치하면 뽑기 (상단 바·기록·설정창은 제외)
+  document.addEventListener('click', e => {
+    if (e.target.closest('header, #history, #sheet, #alert')) return;
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT') { ae.blur(); return; } // 키보드 열려 있으면 닫기만
+    go();
+  });
+
+  // ---- 상단 범위 입력 ----
+  async function applyRange() {
+    let min = parseInt($('min').value, 10), max = parseInt($('max').value, 10);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) { syncRange(); return; }
+    if (min > max) [min, max] = [max, min];
+    if (max - min > 1000000) { syncRange(); await ask('범위가 너무 커요', '범위는 100만 이하로 설정하세요.', { cancel: null }); return; }
+    if (min === state.min && max === state.max) { syncRange(); return; }
+    if (state.drawn.length && !(await ask('범위를 바꿀까요?', '뽑은 기록이 초기화됩니다.', { ok: '바꾸기' }))) { syncRange(); return; }
+    Object.assign(state, { min, max, drawn: [] });
+    persist(); syncRange(); render(); slots(1);
+  }
+  function syncRange() { $('min').value = state.min; $('max').value = state.max; }
+  ['min', 'max'].forEach(id => {
+    $(id).addEventListener('change', applyRange);
+    $(id).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+    $(id).addEventListener('focus', e => e.target.select());
+  });
+
+  // ---- 초기화 ----
+  $('reset').onclick = async () => {
+    if (!state.drawn.length) return;
+    if (!(await ask('기록을 초기화할까요?', `뽑은 숫자 ${state.drawn.length}개가 모두 지워집니다.`, { ok: '초기화', destructive: true }))) return;
+    state.drawn = []; persist(); render(); slots(1);
+  };
+
+  // ---- 설정 시트 (변경 즉시 적용) ----
+  const sheet = $('sheet');
+  function syncSettings() {
+    $('countOut').textContent = state.count;
+    $('unique').checked = state.unique; $('anim').checked = state.anim; $('sound').checked = state.sound;
+  }
+  function setCount(n) { state.count = Math.max(1, Math.min(20, n)); persist(); syncSettings(); slots(1); }
+  $('openSettings').onclick = () => { syncSettings(); sheet.classList.add('open'); };
+  $('done').onclick = () => sheet.classList.remove('open');
+  sheet.addEventListener('click', e => { if (e.target === sheet) sheet.classList.remove('open'); });
+  $('dec').onclick = () => setCount(state.count - 1);
+  $('inc').onclick = () => setCount(state.count + 1);
+  ['unique', 'anim', 'sound'].forEach(id => $(id).addEventListener('change', e => {
+    state[id] = e.target.checked; persist(); render();
+  }));
+
+  syncRange(); render(); slots(1);
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
