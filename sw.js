@@ -1,5 +1,5 @@
 // 온라인이면 최신 파일을 받아 캐시를 갱신하고, 오프라인이면 캐시로 동작
-const CACHE = 'rand-num-v8';
+const CACHE = 'rand-num-v9';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
