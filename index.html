@@ -48,10 +48,10 @@
   .seg input::-webkit-outer-spin-button, .seg input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .seg input:focus { outline: none; background: var(--bg3); box-shadow: 0 3px 8px rgba(0,0,0,.25); }
   .seg .dash { color: var(--label3); font-size: 18px; padding: 0 2px; }
-  .caption { color: var(--label2); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .caption { white-space: nowrap; color: var(--label2); font-size: 15px; font-variant-numeric: tabular-nums; }
 
   .tools { display: flex; gap: 10px; }
-  .pill { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border: 0;
+  .pill { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border: 0;
     border-radius: 999px; background: var(--fill); color: var(--label); font-size: 16px; font-weight: 600;
     cursor: pointer; transition: transform .12s, background .2s; }
   .pill:active { transform: scale(.95); background: var(--fill2); }
